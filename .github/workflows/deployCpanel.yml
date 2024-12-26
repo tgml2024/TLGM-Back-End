@@ -1,0 +1,32 @@
+name: 🚀 Deploy TLGM-Backend on push
+
+on:
+  push:
+    branches:
+      - main  # กำหนดให้ workflow ทำงานเมื่อมีการ push ไปที่ main branch
+
+jobs:
+  web-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest  # ใช้ Ubuntu ล่าสุดในการรัน
+
+    steps:
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v4  # ใช้ action เพื่อดึงโค้ดจาก repository
+
+    - name: 🛠️ Set up Node.js 20.17.0
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.17.0'  # กำหนดเวอร์ชัน Node.js ที่ต้องการ
+
+    - name: 📦 Install npm dependencies
+      run: npm install  # ติดตั้ง npm packages
+
+    - name: 📂 Sync files
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5  # ใช้เวอร์ชันล่าสุดของ FTP-Deploy-Action
+      with:
+        server: ${{ secrets.FTP_SERVER }}  # ใช้เซิร์ฟเวอร์ FTP จาก GitHub Secrets
+        username: ${{ secrets.FTP_USERNAME }}  # ใช้ชื่อผู้ใช้ FTP จาก GitHub Secrets
+        password: ${{ secrets.FTP_PASSWORD }}  # ใช้รหัสผ่าน FTP จาก GitHub Secrets
+        local-dir: ./  # Local directory to upload
+        server-dir: tlgm_api/
