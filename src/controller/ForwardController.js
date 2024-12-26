@@ -635,9 +635,28 @@ const checkClientHealth = async (userId) => {
   }
 };
 
+const getActiveForwarders = async (req, res) => {
+  try {
+    // นับจำนวนผู้ใช้ที่กำลัง forward อยู่จาก intervalsMap
+    const activeForwarders = intervalsMap.size;
+    
+    res.json({
+      success: true,
+      activeForwarders,
+    });
+  } catch (error) {
+    console.error('Error getting active forwarders:', error);
+    res.status(500).json({ 
+      error: 'Failed to get active forwarders count',
+      details: error.message 
+    });
+  }
+};
+
 module.exports = {
   handleInitialize,
   beginForwarding,
   stopContinuousAutoForward,
-  checkForwardingStatus
+  checkForwardingStatus,
+  getActiveForwarders
 };
