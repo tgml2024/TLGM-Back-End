@@ -635,9 +635,127 @@ const checkClientHealth = async (userId) => {
   }
 };
 
+const getActiveForwarders = async (req, res) => {
+  try {
+    // นับจำนวนผู้ใช้ที่กำลัง forward อยู่จาก intervalsMap
+    const activeForwarders = intervalsMap.size;
+    
+    res.json({
+      success: true,
+      activeForwarders,
+    });
+  } catch (error) {
+    console.error('Error getting active forwarders:', error);
+    res.status(500).json({ 
+      error: 'Failed to get active forwarders count',
+      details: error.message 
+    });
+  }
+};
+
+const dashboardAdmin = async (req, res) => {
+  try {
+    // Query daily data
+    const [dailyData] = await db.execute(`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as total_forwards
+      FROM forward
+      WHERE created_at >= CURDATE()
+      GROUP BY DATE(created_at)
+    `);
+
+    const [dailyDetails] = await db.execute(`
+      SELECT 
+        DATE(insert_time) as date,
+        SUM(success_count) as total_success,
+        SUM(fail_count) as total_fail
+      FROM forward_detail
+      WHERE insert_time >= CURDATE()
+      GROUP BY DATE(insert_time)
+    `);
+
+    // Query weekly data
+    const [weeklyData] = await db.execute(`
+      SELECT 
+        YEARWEEK(created_at, 1) as week,
+        COUNT(*) as total_forwards
+      FROM forward
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+      GROUP BY YEARWEEK(created_at, 1)
+    `);
+
+    const [weeklyDetails] = await db.execute(`
+      SELECT 
+        YEARWEEK(insert_time, 1) as week,
+        SUM(success_count) as total_success,
+        SUM(fail_count) as total_fail
+      FROM forward_detail
+      WHERE insert_time >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+      GROUP BY YEARWEEK(insert_time, 1)
+    `);
+
+    // Query monthly data
+    const [monthlyData] = await db.execute(`
+      SELECT 
+        DATE_FORMAT(created_at, '%Y-%m') as month,
+        COUNT(*) as total_forwards
+      FROM forward
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+      GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+    `);
+
+    const [monthlyDetails] = await db.execute(`
+      SELECT 
+        DATE_FORMAT(insert_time, '%Y-%m') as month,
+        SUM(success_count) as total_success,
+        SUM(fail_count) as total_fail
+      FROM forward_detail
+      WHERE insert_time >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+      GROUP BY DATE_FORMAT(insert_time, '%Y-%m')
+    `);
+
+    // Query yearly data
+    const [yearlyData] = await db.execute(`
+      SELECT 
+        YEAR(created_at) as year,
+        COUNT(*) as total_forwards
+      FROM forward
+      GROUP BY YEAR(created_at)
+    `);
+
+    const [yearlyDetails] = await db.execute(`
+      SELECT 
+        YEAR(insert_time) as year,
+        SUM(success_count) as total_success,
+        SUM(fail_count) as total_fail
+      FROM forward_detail
+      GROUP BY YEAR(insert_time)
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        daily: { forwards: dailyData, details: dailyDetails },
+        weekly: { forwards: weeklyData, details: weeklyDetails },
+        monthly: { forwards: monthlyData, details: monthlyDetails },
+        yearly: { forwards: yearlyData, details: yearlyDetails }
+      }
+    });
+  } catch (error) {
+    console.error('Error generating dashboard data:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate dashboard data',
+      details: error.message 
+    });
+  }
+};
+
 module.exports = {
   handleInitialize,
   beginForwarding,
   stopContinuousAutoForward,
-  checkForwardingStatus
+  checkForwardingStatus,
+  getActiveForwarders,
+  dashboardAdmin
 };
