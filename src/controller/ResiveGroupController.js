@@ -86,8 +86,6 @@ const postResiveGroup = async (req, res) => {
 
 
 
-
-
 const deleteResiveGroup = async (req, res) => {
     try {
         // ดึง `rg_id` และ `userId` จาก request
