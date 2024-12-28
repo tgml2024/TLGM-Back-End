@@ -1,11 +1,5 @@
 const db = require('../../db');
 
-// Utility function to convert phone number format
-const convertToLocalFormat = (phone) => {
-    if (!phone) return null;
-    return '0' + phone.substring(3);
-};
-
 class ProfileController {
     // Get profile for logged-in user
     async getUserProfile(req, res) {
@@ -26,8 +20,7 @@ class ProfileController {
             // Convert phone number format and clean sensitive data
             const userProfile = {
                 ...rows[0],
-                phone: convertToLocalFormat(rows[0].phone),
-                password: undefined // Ensure password is never sent
+                password: undefined
             };
 
             res.status(200).json({
@@ -60,8 +53,7 @@ class ProfileController {
             // Convert phone number format and clean sensitive data
             const userProfile = {
                 ...rows[0],
-                phone: convertToLocalFormat(rows[0].phone),
-                password: undefined // Ensure password is never sent
+                password: undefined
             };
 
             res.status(200).json({
@@ -94,7 +86,6 @@ class ProfileController {
 
             const userProfile = {
                 ...rows[0],
-                phone: convertToLocalFormat(rows[0].phone),
                 password: undefined
             };
 
@@ -119,7 +110,6 @@ class ProfileController {
 
             const users = rows.map(user => ({
                 ...user,
-                phone: convertToLocalFormat(user.phone),
                 password: undefined
             }));
 
