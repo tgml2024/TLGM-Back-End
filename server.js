@@ -33,10 +33,11 @@ const configRoutes = require('./src/routers/ConfigRoutes');
 const ResiveGroupRouters = require('./src/routers/ResiveGroupRoutes');
 const SandingGroupRouters = require('./src/routers/SandingGroupRoutes');
 const forwardRoutes = require('./src/routers/ForwardRoutes');
+const manageUserRoutes = require('./src/routers/ManageUserRoutes');
 
-// นำเข้า database connection
-const db = require('./db');
-const { getSandingGroup } = require('./src/controller/SandingGroupController');
+// // นำเข้า database connection
+// const db = require('./db');
+// const { getSandingGroup } = require('./src/controller/SandingGroupController');
 
 app.get('/', (req, res) => {
   res.json(routes);
@@ -53,7 +54,8 @@ app.use('/api/v1', [
   profileRoutes,
   configRoutes,
   ResiveGroupRouters,
-  SandingGroupRouters
+  SandingGroupRouters,
+  manageUserRoutes
 ]);
 
 app.use('/api/v1', forwardRoutes);
