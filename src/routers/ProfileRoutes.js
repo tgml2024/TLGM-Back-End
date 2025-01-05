@@ -13,4 +13,7 @@ router.get('/userProfile', isUser, ProfileController.getUserProfile);
 // Admin only routes
 router.get('/adminProfile', isAdmin, ProfileController.getAdminProfile);
 
+// Update profile
+router.put('/updateProfile', isUser, ProfileController.updateProfile);
+
 module.exports = router; 
