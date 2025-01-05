@@ -3,12 +3,12 @@ const db = require('../../db');
 class ProfileController {
     // Get profile for logged-in user
     async getUserProfile(req, res) {
+        let connection;
         try {
-            const userId = req.user.userId;
-
-            const [rows] = await db.execute(
+            connection = await db.getConnection();
+            const [rows] = await connection.execute(
                 'SELECT userid, username, name, phone, api_id, api_hash, role, telegram_auth FROM users WHERE userid = ?',
-                [userId]
+                [req.user.userId]
             );
 
             if (!rows || rows.length === 0) {
@@ -17,7 +17,6 @@ class ProfileController {
                 });
             }
 
-            // Convert phone number format and clean sensitive data
             const userProfile = {
                 ...rows[0],
                 password: undefined
@@ -32,16 +31,20 @@ class ProfileController {
             res.status(500).json({
                 message: 'เกิดข้อผิดพลาดในการดึงข้อมูล'
             });
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
 
     async getAdminProfile(req, res) {
+        let connection;
         try {
-            const userId = req.user.userId;
-
-            const [rows] = await db.execute(
+            connection = await db.getConnection();
+            const [rows] = await connection.execute(
                 'SELECT userid, username, name, phone, api_id, api_hash, role, telegram_auth FROM users WHERE userid = ?',
-                [userId]
+                [req.user.userId]
             );
 
             if (!rows || rows.length === 0) {
@@ -50,7 +53,6 @@ class ProfileController {
                 });
             }
 
-            // Convert phone number format and clean sensitive data
             const userProfile = {
                 ...rows[0],
                 password: undefined
@@ -65,17 +67,20 @@ class ProfileController {
             res.status(500).json({
                 message: 'เกิดข้อผิดพลาดในการดึงข้อมูล'
             });
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
 
-    // Admin can get any user's profile by userId
     async getProfileById(req, res) {
+        let connection;
         try {
-            const { userId } = req.params;
-
-            const [rows] = await db.execute(
+            connection = await db.getConnection();
+            const [rows] = await connection.execute(
                 'SELECT userid, username, name, phone, api_id, api_hash, role, telegram_auth FROM users WHERE userid = ?',
-                [userId]
+                [req.params.userId]
             );
 
             if (!rows || rows.length === 0) {
@@ -98,13 +103,18 @@ class ProfileController {
             res.status(500).json({
                 message: 'เกิดข้อผิดพลาดในการดึงข้อมูล'
             });
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
 
-    // Admin can get all users' profiles
     async getAllProfiles(req, res) {
+        let connection;
         try {
-            const [rows] = await db.execute(
+            connection = await db.getConnection();
+            const [rows] = await connection.execute(
                 'SELECT userid, username, name, phone, api_id, api_hash, role, telegram_auth FROM users ORDER BY userid'
             );
 
@@ -122,6 +132,43 @@ class ProfileController {
             res.status(500).json({
                 message: 'เกิดข้อผิดพลาดในการดึงข้อมูล'
             });
+        } finally {
+            if (connection) {
+                connection.release();
+            }
+        }
+    }
+
+    async updateProfile(req, res) {
+        let connection;
+        try {
+            const { name, phone, api_id, api_hash } = req.body;
+            
+            connection = await db.getConnection();
+            const [result] = await connection.execute(
+                'UPDATE users SET name = ?, phone = ?, api_id = ?, api_hash = ? WHERE userid = ?',
+                [name, phone, api_id, api_hash, req.user.userId]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({
+                    message: 'ไม่พบข้อมูลผู้ใช้หรือไม่สามารถอัพเดทข้อมูลได้'
+                });
+            }
+
+            res.status(200).json({
+                message: 'อัพเดทข้อมูลสำเร็จ'
+            });
+
+        } catch (error) {
+            console.error('Update profile error:', error);
+            res.status(500).json({
+                message: 'เกิดข้อผิดพลาดในการอัพเดทข้อมูล'
+            });
+        } finally {
+            if (connection) {
+                connection.release();
+            }
         }
     }
 }
