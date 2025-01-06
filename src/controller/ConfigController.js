@@ -66,11 +66,7 @@ const getChannels = async (req, res) => {
 };
 
 const formatPhoneNumber = (phoneNumber) => {
-    // ตรวจสอบว่าหมายเลขขึ้นต้นด้วย '0'
-    if (phoneNumber.startsWith('0')) {
-      return '+66' + phoneNumber.slice(1); // แปลง '0' เป็น '+66'
-    }
-    return phoneNumber; // หากไม่มี '0' คงหมายเลขเดิม
+    return phoneNumber; // ส่งคืนเบอร์โทรศัพท์โดยไม่มีการแปลง
 };
 
   
