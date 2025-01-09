@@ -85,51 +85,48 @@ const postResiveGroup = async (req, res) => {
 };
 
 
-
 const deleteResiveGroup = async (req, res) => {
     try {
-        // ดึง `rg_id` และ `userId` จาก request
-        const { rg_id } = req.params; // รับ ID กลุ่มที่ต้องการลบ
-        const userId = req.user?.userId || req.body.userId; // ใช้ JWT หรือดึงจาก body
+        const { rg_ids } = req.body;
+        const userId = req.user?.userId || req.body.userId;
 
-        if (!rg_id || !userId) {
+        if (!rg_ids || !Array.isArray(rg_ids) || rg_ids.length === 0 || !userId) {
             return res.status(400).json({
-                message: 'กรุณาระบุ rg_id และ userId ให้ครบถ้วน'
+                message: 'กรุณาระบุ rg_ids (array) และ userId ให้ครบถ้วน'
             });
         }
 
-        // ตรวจสอบว่ากลุ่มที่ลบเป็นของผู้ใช้คนนี้หรือไม่
-        const [checkGroup] = await db.execute(
-            'SELECT * FROM resivegroup WHERE rg_id = ? AND userid = ?',
-            [rg_id, userId]
+        // แก้ไขการใช้ IN clause โดยใช้ ? ตามจำนวน elements ใน array
+        const placeholders = rg_ids.map(() => '?').join(',');
+        
+        // ตรวจสอบกลุ่ม
+        const [checkGroups] = await db.execute(
+            `SELECT rg_id FROM resivegroup WHERE rg_id IN (${placeholders}) AND userid = ?`,
+            [...rg_ids, userId]
         );
 
-        if (!checkGroup || checkGroup.length === 0) {
+        if (!checkGroups || checkGroups.length !== rg_ids.length) {
             return res.status(404).json({
-                message: 'ไม่พบกลุ่มที่ต้องการลบ หรือไม่มีสิทธิ์ลบกลุ่มนี้'
+                message: 'ไม่พบกลุ่มบางรายการที่ต้องการลบ หรือไม่มีสิทธิ์ลบกลุ่มเหล่านั้น'
             });
         }
 
         // ลบกลุ่ม
         const [result] = await db.execute(
-            'DELETE FROM resivegroup WHERE rg_id = ? AND userid = ?',
-            [rg_id, userId]
+            `DELETE FROM resivegroup WHERE rg_id IN (${placeholders}) AND userid = ?`,
+            [...rg_ids, userId]
         );
 
-        if (result.affectedRows === 0) {
-            return res.status(400).json({
-                message: 'ไม่สามารถลบกลุ่มได้'
-            });
-        }
-
         res.status(200).json({
-            message: 'ลบ Resive Group สำเร็จ',
-            groupId: rg_id
+            message: 'ลบ Resive Groups สำเร็จ',
+            deletedCount: result.affectedRows,
+            groupIds: rg_ids
         });
     } catch (error) {
-        console.error('Error in deleteResiveGroup:', error);
+        console.error('Error in deleteResiveGroup:', error); // เพิ่ม log error
         res.status(500).json({
-            message: 'เกิดข้อผิดพลาดในการลบ Resive Group'
+            message: 'เกิดข้อผิดพลาดในการลบ Resive Groups',
+            error: error.message // เพิ่ม error message ใน response
         });
     }
 };
