@@ -4,7 +4,7 @@ const {
   checkForwardingStatus,
   handleInitialize,
   getActiveForwarders,
-  dashboardAdmin
+  // dashboardAdmin
 } = require("../controller/ForwardController");
 const express = require('express');
 const router = express.Router();
@@ -16,6 +16,6 @@ router.post("/initialize", handleInitialize);
 router.post("/check-forwarding-status", checkForwardingStatus);
 
 router.get("/get-active-forwarders", getActiveForwarders);
-router.get("/dashboard-admin", dashboardAdmin);
+// router.get("/dashboard-admin", dashboardAdmin);
 
 module.exports = router;
