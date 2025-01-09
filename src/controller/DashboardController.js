@@ -284,6 +284,42 @@ class DashboardController {
             });
         }
     }
+
+    async dashboardAdminTotal(req, res) {
+        try {
+            const timezone = '+07:00';
+            await db.execute('SET time_zone = ?', [timezone]);
+
+            // ดึงข้อมูลรวมทั้งหมด
+            const [totalData] = await db.execute(`
+                SELECT 
+                    COUNT(DISTINCT f.forward_id) as total_forwards,
+                    SUM(fd.success_count) as total_success,
+                    SUM(fd.fail_count) as total_fail
+                FROM forward f
+                LEFT JOIN forward_detail fd ON f.forward_id = fd.forward_id
+            `);
+
+            return res.json({
+                success: true,
+                data: {
+                    summary: {
+                        total_forwards: totalData[0].total_forwards,
+                        total_success: totalData[0].total_success || 0,
+                        total_fail: totalData[0].total_fail || 0
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error('Error generating total stats:', error);
+            res.status(500).json({ 
+                success: false,
+                error: 'Failed to generate total stats',
+                details: error.message 
+            });
+        }
+    }
 }
 
 module.exports = new DashboardController();
