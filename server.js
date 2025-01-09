@@ -34,7 +34,8 @@ const ResiveGroupRouters = require('./src/routers/ResiveGroupRoutes');
 const SandingGroupRouters = require('./src/routers/SandingGroupRoutes');
 const forwardRoutes = require('./src/routers/ForwardRoutes');
 const manageUserRoutes = require('./src/routers/ManageUserRoutes');
-const dashboardRoutes = require('./src/routers/DashboardRoutes');
+const dashboardRoutes = require('./src/routers/DashboardAdminRoutes');
+const dashboardUserRoutes = require('./src/routers/DashboardUserRoutes');
 
 // // นำเข้า database connection
 // const db = require('./db');
@@ -58,6 +59,7 @@ app.use('/api/v1', [
   SandingGroupRouters,
   manageUserRoutes,
   dashboardRoutes,
+  dashboardUserRoutes,
 ]);
 
 app.use('/api/v1', forwardRoutes);

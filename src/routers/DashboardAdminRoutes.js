@@ -4,7 +4,7 @@ const {
     dashboardAdminMonth,
     dashboardAdminYear,
     dashboardAdminTotal
-} = require("../controller/DashboardController");
+} = require("../controller/DashboardAdminController");
 
 const router = express.Router();
 

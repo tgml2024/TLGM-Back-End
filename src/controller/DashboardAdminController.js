@@ -1,6 +1,6 @@
 const db = require('../../db');
 
-class DashboardController {
+class DashboardAdminController {
     async dashboardAdminDay(req, res) {
         try {
             const { date } = req.query;
@@ -322,4 +322,4 @@ class DashboardController {
     }
 }
 
-module.exports = new DashboardController();
+module.exports = new DashboardAdminController();
