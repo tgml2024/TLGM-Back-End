@@ -5,20 +5,15 @@ const {
     deleteSandingGroup,
 } = require("../controller/SandingGroupController");
 
-const authenticateToken = require('../middleware/authMiddleware');
-const isUser = require('../middleware/userMiddleware');
-// Protected routes - require authentication
 const router = express.Router();
-router.use(authenticateToken);
-router.use(isUser);
 
 // Route for fetching Sending Groups
-router.get("/sanding-group", isUser, getSandingGroup);
+router.get("/sanding-group", getSandingGroup);
 
 // Route for adding a new Sending Group
-router.post("/sanding-group", isUser, postSandingGroup);
+router.post("/sanding-group", postSandingGroup);
 
 // Route for deleting a Sending Group
-router.delete("/sanding-group", isUser, deleteSandingGroup);
+router.delete("/sanding-group", deleteSandingGroup);
 
 module.exports = router;
