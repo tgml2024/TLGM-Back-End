@@ -1,14 +1,8 @@
+const router = express.Router();
 const ProfileController = require('../controller/ProfileController');
 const express = require("express");
 
-const authenticateToken = require('../middleware/authMiddleware');
-const isUser = require('../middleware/userMiddleware');
-// Protected routes - require authentication
-const router = express.Router();
-router.use(authenticateToken);
-router.use(isUser);
-
 // Route for sending message
-router.post("/send-message", isUser, ProfileController.sendMessage);
+router.post("/send-message", ProfileController.sendMessage);
 
 module.exports = router;
