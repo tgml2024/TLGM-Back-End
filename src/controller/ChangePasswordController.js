@@ -9,7 +9,8 @@ class ChangePasswordController {
             if (!userId || !currentPassword || !newPassword) {
                 return res.status(400).json({
                     success: false,
-                    error: 'กรุณาระบุ userId, รหัสผ่านปัจจุบัน และรหัสผ่านใหม่'
+                    error: 'Please provide userId, current password, and new password',
+                    message: 'Missing required fields'
                 });
             }
 
@@ -21,7 +22,8 @@ class ChangePasswordController {
             if (users.length === 0) {
                 return res.status(404).json({
                     success: false,
-                    error: 'ไม่พบผู้ใช้งานในระบบ'
+                    error: 'User not found',
+                    message: 'The specified user does not exist'
                 });
             }
 
@@ -29,7 +31,8 @@ class ChangePasswordController {
             if (!isValidPassword) {
                 return res.status(401).json({
                     success: false,
-                    error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง'
+                    error: 'Current password is incorrect',
+                    message: 'Please check your current password and try again'
                 });
             }
 
@@ -43,20 +46,22 @@ class ChangePasswordController {
             if (result.affectedRows === 0) {
                 return res.status(404).json({
                     success: false,
-                    error: 'ไม่พบผู้ใช้งานในระบบ'
+                    error: 'User not found',
+                    message: 'Failed to update password. User not found'
                 });
             }
 
             return res.status(200).json({
                 success: true,
-                message: 'เปลี่ยนรหัสผ่านสำเร็จ'
+                message: 'Password has been successfully updated'
             });
 
         } catch (error) {
             console.error('Error changing password:', error);
             return res.status(500).json({
                 success: false,
-                error: 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน'
+                error: 'An error occurred while changing password',
+                message: 'Server error occurred. Please try again later'
             });
         }
     }

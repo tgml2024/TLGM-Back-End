@@ -7,15 +7,19 @@ const {
   // dashboardAdmin
 } = require("../controller/ForwardController");
 const express = require('express');
+const authenticateToken = require('../middleware/authMiddleware');
+const isUser = require('../middleware/userMiddleware');
+// Protected routes - require authentication
 const router = express.Router();
+router.use(authenticateToken);
+router.use(isUser);
 
-// Remove unused routes and add new beginForwarding route
-router.post("/begin-forwarding", beginForwarding);
-router.post("/stop-continuous-forward", stopContinuousAutoForward);
-router.post("/initialize", handleInitialize);
-router.post("/check-forwarding-status", checkForwardingStatus);
+router.post("/begin-forwarding", isUser, beginForwarding);
+router.post("/stop-continuous-forward", isUser, stopContinuousAutoForward);
+router.post("/initialize", isUser, handleInitialize);
+router.post("/check-forwarding-status", isUser, checkForwardingStatus);
 
-router.get("/get-active-forwarders", getActiveForwarders);
-// router.get("/dashboard-admin", dashboardAdmin);
+router.get("/get-active-forwarders", isUser, getActiveForwarders);
 
 module.exports = router;
+  

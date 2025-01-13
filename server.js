@@ -36,10 +36,8 @@ const forwardRoutes = require('./src/routers/ForwardRoutes');
 const manageUserRoutes = require('./src/routers/ManageUserRoutes');
 const dashboardRoutes = require('./src/routers/DashboardAdminRoutes');
 const dashboardUserRoutes = require('./src/routers/DashboardUserRoutes');
+const ChangePasswordRoutes = require('./src/routers/ChangePasswordRoutes');
 
-// // นำเข้า database connection
-// const db = require('./db');
-// const { getSandingGroup } = require('./src/controller/SandingGroupController');
 
 app.get('/', (req, res) => {
   res.json(routes);
@@ -60,6 +58,7 @@ app.use('/api/v1', [
   manageUserRoutes,
   dashboardRoutes,
   dashboardUserRoutes,
+  ChangePasswordRoutes,
 ]);
 
 app.use('/api/v1', forwardRoutes);
