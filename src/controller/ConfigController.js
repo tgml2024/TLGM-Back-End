@@ -228,8 +228,8 @@ const verifyCode = async (req, res) => {
 
     if (!apiId || !phoneNumber || !code || !phoneCodeHash || !userid) {
         return res.status(400).json({
-            error: "ข้อมูลไม่ครบถ้วน",
-            details: "กรุณาระบุ apiId, phoneNumber, code, phoneCodeHash และ userid",
+            error: "Missing required fields",
+            details: "Please provide apiId, phoneNumber, code, phoneCodeHash and userid"
         });
     }
 
@@ -237,7 +237,7 @@ const verifyCode = async (req, res) => {
     const clientData = clients[clientKey];
 
     if (!clientData) {
-        return res.status(404).json({ error: "ไม่พบ Client สำหรับ API_ID และ USER_ID นี้" });
+        return res.status(404).json({ error: "Client not found for this API_ID and USER_ID" });
     }
 
     try {
@@ -245,36 +245,47 @@ const verifyCode = async (req, res) => {
         clientData.lastUsed = Date.now();
 
         const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
-        console.log('Sending to Telegram API:', {
-            phoneNumber: formattedPhoneNumber,
-            phoneCode: code,
-            phoneCodeHash: phoneCodeHash,
-        });
-
         const { client } = clientData;
+        
+        // Sign in
         await client.invoke(new Api.auth.SignIn({
             phoneNumber: formattedPhoneNumber,
             phoneCode: code,
             phoneCodeHash: phoneCodeHash,
         }));
 
-        sessions[clientKey] = client.session.save(); // ใช้ clientKey แทน apiId
+        // ดึงข้อมูลผู้ใช้ Telegram
+        const me = await client.getMe();
+        const telegramFirstName = me.firstName || '';
+        const telegramLastName = me.lastName || '';
+        // รวมชื่อโดยเว้นวรรคตรงกลาง และตัด space ที่เกินออกด้วย trim()
+        const telegramName = `${telegramFirstName} ${telegramLastName}`.trim();
+        const telegramUsername = me.username || '';
+
+        sessions[clientKey] = client.session.save();
         const sessionHash = sessions[clientKey];
 
-        console.log('Updating Database...');
+        // อัพเดทฐานข้อมูลโดยใช้ชื่อที่รวมกันแล้ว
         const [result] = await db.execute(
-            'UPDATE users SET session_hash = ?, telegram_auth = 1 WHERE userid = ?',
-            [sessionHash, userid]
+            'UPDATE users SET session_hash = ?, telegram_auth = 1, name = ? WHERE userid = ?',
+            [sessionHash, telegramName, userid]
         );
-
-        console.log('Database Update Result:', result);
 
         if (result.affectedRows === 0) {
             console.error('Database Update Failed: No rows affected.');
             return res.status(404).json({ error: 'User not found or update failed.' });
         }
 
-        res.json({ message: "ยืนยันรหัส OTP สำเร็จ", apiId, sessionHash });
+        res.json({ 
+            message: "OTP verification successful",
+            apiId,
+            sessionHash,
+            telegramInfo: {
+                name: telegramName,
+                username: telegramUsername
+            }
+        });
+
     } catch (error) {
         console.error("Error in verifyCode:", error);
         res.status(500).json({ error: "Telegram API failed", details: error.message });
