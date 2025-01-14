@@ -3,19 +3,18 @@ const {
   stopContinuousAutoForward,
   checkForwardingStatus,
   handleInitialize,
-  getActiveForwarders,
-  // dashboardAdmin
 } = require("../controller/ForwardController");
 const express = require('express');
 const router = express.Router();
+const isAdmin = require('../middleware/adminMiddleware');
+const isUser = require('../middleware/userMiddleware');
 
 // Remove unused routes and add new beginForwarding route
-router.post("/begin-forwarding", beginForwarding);
-router.post("/stop-continuous-forward", stopContinuousAutoForward);
-router.post("/initialize", handleInitialize);
-router.post("/check-forwarding-status", checkForwardingStatus);
+router.post("/begin-forwarding", isUser,beginForwarding);
+router.post("/stop-continuous-forward", isUser,stopContinuousAutoForward);
+router.post("/initialize", isUser,handleInitialize);
+router.post("/check-forwarding-status", isUser,checkForwardingStatus);
 
-router.get("/get-active-forwarders", getActiveForwarders);
-// router.get("/dashboard-admin", dashboardAdmin);
+
 
 module.exports = router;

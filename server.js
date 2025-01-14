@@ -58,10 +58,9 @@ app.use('/api/v1', [
   manageUserRoutes,
   dashboardRoutes,
   dashboardUserRoutes,
-  ChangePasswordRoutes,
+  forwardRoutes,
+  ChangePasswordRoutes
 ]);
-
-app.use('/api/v1', forwardRoutes);
 
 // เริ่ม server
 const startServer = async () => {
