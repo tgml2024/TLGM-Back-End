@@ -17,6 +17,17 @@ class LoginController {
                 return res.status(401).json({ message: 'Invalid username or password' });
             }
 
+            switch (user.status) {
+                case 1:
+                    return res.status(403).json({ message: 'This account has been deleted' });
+                case 2:
+                    return res.status(403).json({ message: 'This account has been suspended' });
+                case 0:
+                    break;
+                default:
+                    return res.status(403).json({ message: 'Invalid account status' });
+            }
+
             const isValidPassword = await bcrypt.compare(password, user.password);
             if (!isValidPassword) {
                 return res.status(401).json({ message: 'Invalid username or password' });
