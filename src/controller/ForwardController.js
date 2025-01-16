@@ -108,43 +108,72 @@ const checkNewMessages = async (client, sourceChatId) => {
 
 const forwardMessage = async (client, msg, sourceChatId, destChatId) => {
   const currentTime = Date.now();
+  const cooldownInfo = groupCooldowns.get(destChatId);
+
+  // เพิ่มการเช็คว่ากำลังอยู่ใน cooldown หรือไม่
+  if (cooldownInfo?.enabled && !cooldownInfo.canSendNext) {
+    const waitTime = (cooldownInfo.lastMessageTime + (cooldownInfo.seconds * 1000)) - currentTime;
+    if (waitTime > 0) {
+      return {
+        success: false,
+        nextAttemptTime: cooldownInfo.lastMessageTime + (cooldownInfo.seconds * 1000),
+        error: `Still in cooldown period (${Math.ceil(waitTime/1000)}s remaining)`
+      };
+    }
+  }
 
   try {
-    // ตรวจสอบ cooldown อย่างเข้มงวด
-    const currentCooldown = groupCooldowns.get(destChatId);
-    if (currentCooldown && currentTime < currentCooldown) {
-      const timeLeft = Math.ceil((currentCooldown - currentTime) / 1000);
-      console.log(`\n🔍 การตรวจสอบ Cooldown กลุ่ม ${destChatId}:`);
-      console.log(`⏰ เวลาปัจจุบัน: ${new Date(currentTime).toISOString()}`);
-      console.log(`⏳ Cooldown จนถึง: ${new Date(currentCooldown).toISOString()}`);
-      console.log(`⌛ เหลือเวลาอีก: ${timeLeft} วินาที`);
-      console.log(`✋ ผลลัพธ์: ข้ามการส่ง (return null)\n`);
-      return null;
-    }
-
-    // ถ้าไม่ติด cooldown จะพยายามส่ง
     console.log(`\n📤 กำลังส่งข้อความไปยังกลุ่ม ${destChatId}`);
     await client.forwardMessages(destChatId, {
       messages: [msg.id],
       fromPeer: sourceChatId,
     });
 
-    console.log(`✅ ส่งสำเร็จไปยังกลุ่ม ${destChatId}\n`);
-    return true;
+    // อัพเดทสถานะหลังส่งสำเร็จ
+    if (!cooldownInfo) {
+      // กรณีส่งครั้งแรก
+      groupCooldowns.set(destChatId, {
+        seconds: 0,
+        enabled: false,
+        lastMessageTime: currentTime,
+        messageCount: 1, // เริ่มนับจำนวนข้อความ
+        canSendNext: false // ครั้งต่อไปจะติด cooldown
+      });
+    } else {
+      // กรณีส่งสำเร็จหลังรอ cooldown
+      cooldownInfo.lastMessageTime = currentTime;
+      cooldownInfo.messageCount += 1;
+      cooldownInfo.canSendNext = false; // ครั้งต่อไปจะติด cooldown
+      groupCooldowns.set(destChatId, cooldownInfo);
+    }
+
+    console.log(`✅ ส่งสำเร็จไปยังกลุ่ม ${destChatId} (ครั้งที่ ${cooldownInfo?.messageCount || 1})`);
+    return { success: true };
 
   } catch (error) {
     if (error.message.includes('wait of')) {
       const waitSeconds = parseInt(error.message.match(/wait of (\d+) seconds/)[1]);
-      const cooldownTime = currentTime + (waitSeconds * 1000);
-      groupCooldowns.set(destChatId, cooldownTime);
-      console.log(`\n❌ เกิด SLOWMODE_WAIT ในกลุ่ม ${destChatId}:`);
-      console.log(`⏳ ต้องรอ ${waitSeconds} วินาที`);
-      console.log(`⏰ บันทึก Cooldown จนถึง: ${new Date(cooldownTime).toISOString()}\n`);
-      return false;
-    }
+      console.log(`\n⚠️ พบ SLOWMODE_WAIT ในกลุ่ม ${destChatId}:`);
+      console.log(`- ต้องรอ ${waitSeconds} วินาที`);
+      
+      // อัพเดทข้อมูล cooldown และป้องกันการ retry ทันที
+      const updatedInfo = {
+        seconds: waitSeconds,
+        enabled: true,
+        lastMessageTime: currentTime,
+        messageCount: (cooldownInfo?.messageCount || 1),
+        canSendNext: false // ป้องกันการ retry จนกว่าจะครบ cooldown
+      };
+      groupCooldowns.set(destChatId, updatedInfo);
 
-    console.error(`\n❌ Error ในกลุ่ม ${destChatId}: ${error.message}\n`);
-    return false;
+      return {
+        success: false,
+        nextAttemptTime: currentTime + (waitSeconds * 1000)
+      };
+    }
+    
+    console.error(`\n❌ Error ในกลุ่ม ${destChatId}: ${error.message}`);
+    return { success: false, error: error.message };
   }
 };
 
@@ -153,14 +182,51 @@ const getGroupCooldowns = async (client, chatIds) => {
   for (const chatId of chatIds) {
     try {
       const chat = await client.getEntity(chatId);
-      if (chat.slowmode_enabled) {
-        cooldowns[chatId] = chat.slowmode_seconds;
+      if (chat.slowmode_seconds) {
+        cooldowns[chatId] = {
+          seconds: chat.slowmode_seconds,
+          enabled: true,
+          lastMessageTime: null,
+          messageCount: 0,
+          canSendNext: true,
+          slowModeType: getSlowModeType(chat.slowmode_seconds)
+        };
+      } else {
+        cooldowns[chatId] = {
+          seconds: 0,
+          enabled: false,
+          lastMessageTime: null,
+          messageCount: 0,
+          canSendNext: true,
+          slowModeType: 'NONE'
+        };
       }
     } catch (error) {
-      console.error(`ไม่สามารถดึงข้อมูล cooldown ของกลุ่ม ${chatId}:`, error.message);
+      console.error(`❌ ไม่สามารถดึงข้อมูล cooldown ของกลุ่ม ${chatId}:`, error.message);
+      cooldowns[chatId] = {
+        seconds: 0,
+        enabled: false,
+        error: error.message,
+        slowModeType: 'UNKNOWN'
+      };
     }
   }
   return cooldowns;
+};
+
+// เพิ่มฟังก์ชันสำหรับระบุประเภท Slow Mode
+const getSlowModeType = (seconds) => {
+  switch (seconds) {
+    case 0: return 'NONE';
+    case 10: return '10 วินาที';
+    case 30: return '30 วินาที';
+    case 60: return '1 นาที';
+    case 300: return '5 นาที';
+    case 900: return '15 นาที';
+    case 1800: return '30 นาที';
+    case 3600: return '1 ชั่วโมง';
+    default: return `${seconds} วินาที (Custom)`;
+  }
 };
 
 const processCooldownGroups = async (client, msg, sourceChatId, cooldownGroups) => {
@@ -234,108 +300,87 @@ const autoForwardMessages = async (userId, sourceChatId, destinationChatIds) => 
   if (!clientData) throw new Error('Client not found');
 
   try {
-    // ดึงข้อความที่จะส่งจาก messagesMap
     const messages = messagesMap.get(userId);
     if (!messages || messages.length === 0) {
       throw new Error('No message found to forward');
     }
-    const messageToForward = messages[0]; // ใช้ข้อความแรก
+    const messageToForward = messages[0];
 
-    // 1. ตรวจสอบจำนวนกลุ่มและแจ้งเตือน
-    if (destinationChatIds.length > RATE_LIMIT.LARGE_SCALE_THRESHOLD) {
-      console.log(`⚠️ Large scale forwarding detected: ${destinationChatIds.length} groups`);
-      console.log('🔄 Implementing safe forwarding strategy...');
-    }
-
-    // 2. กรองกลุ่มที่พร้อมส่งและติด cooldown
+    // จัดกลุ่มตามสถานะ
     const now = Date.now();
-    const availableGroups = destinationChatIds.filter(destChatId => {
-      const cooldownUntil = groupCooldowns.get(destChatId);
-      return !cooldownUntil || now >= cooldownUntil;
-    });
+    const groupsByStatus = {
+      ready: [], // กลุ่มที่พร้อมส่ง (ครั้งแรกหรือครบ cooldown)
+      waiting: [] // กลุ่มที่ต้องรอ cooldown
+    };
 
-    const cooldownGroups = new Set(destinationChatIds.filter(destChatId => {
-      const cooldownUntil = groupCooldowns.get(destChatId);
-      return cooldownUntil && now < cooldownUntil;
-    }));
-
-    // 3. แบ่งกลุ่มเป็น chunks ที่เล็กลง
-    const chunks = [];
-    for (let i = 0; i < availableGroups.length; i += RATE_LIMIT.CHUNK_SIZE) {
-      chunks.push(availableGroups.slice(i, i + RATE_LIMIT.CHUNK_SIZE));
+    // แยกกลุ่มตามสถานะ
+    for (const destChatId of destinationChatIds) {
+      const cooldownInfo = groupCooldowns.get(destChatId);
+      
+      if (!cooldownInfo || cooldownInfo.canSendNext) {
+        // กรณีที่ยังไม่เคยส่ง หรือ รอ cooldown ครบแล้ว
+        groupsByStatus.ready.push(destChatId);
+      } else if (cooldownInfo.seconds > 0) {
+        // กรณีที่ต้องรอ cooldown
+        const nextAttemptTime = cooldownInfo.lastMessageTime + (cooldownInfo.seconds * 1000);
+        if (now >= nextAttemptTime) {
+          groupsByStatus.ready.push(destChatId);
+        } else {
+          groupsByStatus.waiting.push({
+            chatId: destChatId,
+            readyAt: nextAttemptTime,
+            cooldownSeconds: cooldownInfo.seconds,
+            messageCount: cooldownInfo.messageCount
+          });
+        }
+      }
     }
 
-    console.log(`\n📊 สถานะการ Forward:`);
-    console.log(`📍 จำนวนกลุ่มทั้งหมด: ${destinationChatIds.length}`);
-    console.log(`✅ กลุ่มที่พร้อมส่ง: ${availableGroups.length}`);
-    console.log(`⏳ กลุ่มที่ติด cooldown: ${cooldownGroups.size}`);
-    console.log(`📦 แบ่งเป็น ${chunks.length} chunks (${RATE_LIMIT.CHUNK_SIZE} กลุ่ม/chunk)`);
+    // เรียงลำดับกลุ่มที่รอตามเวลา
+    groupsByStatus.waiting.sort((a, b) => a.readyAt - b.readyAt);
 
-    // 4. ใช้ Dynamic Batch Size
-    let currentBatchSize = Math.min(userBatchSizesMap.get(userId) || 3, 3);
-    console.log(`📦 Batch size เริ่มต้น: ${currentBatchSize} chunks/รอบ`);
+    console.log('\n📊 สถานะการ Forward:');
+    console.log(`✅ กลุ่มที่พร้อมส่ง: ${groupsByStatus.ready.length}`);
+    console.log(`⏳ กลุ่มที่รอ cooldown: ${groupsByStatus.waiting.length}`);
 
-    // 5. ดำเนินการส่งแบบ Progressive
-    let totalSuccess = 0;
-    let totalFailed = 0;
-    let consecutiveErrors = 0;
-
-    for (let i = 0; i < chunks.length; i += currentBatchSize) {
-      // ตรวจสอบ consecutive errors
-      if (consecutiveErrors >= 3) {
-        console.log('⚠️ พบข้อผิดพลาดติดต่อกันหลายครั้ง, ลดขนาด batch...');
-        currentBatchSize = Math.max(1, currentBatchSize - 1);
-        consecutiveErrors = 0;
-      }
-
-      console.log(`\n=== รอบที่ ${Math.floor(i / currentBatchSize) + 1}/${Math.ceil(chunks.length / currentBatchSize)} ===`);
-
-      const currentBatch = chunks.slice(i, i + currentBatchSize);
-      const batchResults = await Promise.all(
-        currentBatch.flatMap(chunk =>
-          chunk.map(async destChatId => {
-            const result = await forwardMessage(clientData.client, messageToForward, sourceChatId, destChatId);
-            if (!result) {
-              consecutiveErrors++;
-              totalFailed++;
-              const cooldownUntil = groupCooldowns.get(destChatId);
-              if (cooldownUntil) {
-                cooldownGroups.add(destChatId);
-              }
-            } else {
-              consecutiveErrors = 0;
-              totalSuccess++;
-            }
-            return result;
-          })
-        )
-      );
-
-      // 6. ปรับ Batch Size ตามผลลัพธ์
-      const batchSuccessRate = batchResults.filter(r => r).length / batchResults.length;
-      if (batchSuccessRate > 0.8) {
-        currentBatchSize = Math.min(currentBatchSize + 1, 5);
-      } else if (batchSuccessRate < 0.5) {
-        currentBatchSize = Math.max(1, currentBatchSize - 1);
-      }
-
-      // 7. พักระหว่าง batches
-      if (i + currentBatchSize < chunks.length) {
-        console.log(`\n⏱️ พักระหว่าง batches ${RATE_LIMIT.BATCH_DELAY / 1000} วินาที...`);
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.BATCH_DELAY));
-      }
-
-      // 8. แสดงความคืบหน้า
-      const progress = ((i + currentBatchSize) / chunks.length) * 100;
-      console.log(`\n📊 ความคืบหน้า: ${Math.min(100, progress.toFixed(1))}%`);
-      console.log(`✅ สำเร็จ: ${totalSuccess} กลุ่ม`);
-      console.log(`❌ ไม่สำเร็จ: ${totalFailed} กลุ่ม`);
+    // แสดงรายละเอียดกลุ่มที่รอ
+    if (groupsByStatus.waiting.length > 0) {
+      console.log('\n⏳ รายการกลุ่มที่รอ cooldown:');
+      groupsByStatus.waiting.forEach(({ chatId, readyAt, cooldownSeconds, messageCount }) => {
+        const timeLeft = Math.ceil((readyAt - now) / 1000);
+        console.log(`- กลุ่ม ${chatId}: รออีก ${timeLeft} วินาที (ส่งไปแล้ว ${messageCount} ครั้ง)`);
+      });
     }
 
-    // 9. จัดการกลุ่มที่ติด cooldown แยก
-    if (cooldownGroups.size > 0) {
-      console.log(`\n⏳ เริ่มกระบวนการส่งสำหรับ ${cooldownGroups.size} กลุ่มที่ติด cooldown`);
-      await processCooldownGroups(clientData.client, messageToForward, sourceChatId, cooldownGroups);
+    // ส่งข้อความไปยังกลุ่มที่พร้อม
+    for (const destChatId of groupsByStatus.ready) {
+      const result = await forwardMessage(clientData.client, messageToForward, sourceChatId, destChatId);
+      
+      if (!result.success && result.nextAttemptTime) {
+        groupsByStatus.waiting.push({
+          chatId: destChatId,
+          readyAt: result.nextAttemptTime,
+          cooldownSeconds: groupCooldowns.get(destChatId)?.seconds || 0,
+          messageCount: groupCooldowns.get(destChatId)?.messageCount || 1
+        });
+        groupsByStatus.waiting.sort((a, b) => a.readyAt - b.readyAt);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // จัดการกลุ่มที่รอ cooldown
+    for (const { chatId, readyAt } of groupsByStatus.waiting) {
+      const waitTime = readyAt - Date.now();
+      if (waitTime > 0) {
+        console.log(`\n⏳ รอ ${Math.ceil(waitTime/1000)} วินาทีก่อนส่งไปยังกลุ่ม ${chatId}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime + 2000));
+      }
+      
+      const result = await forwardMessage(clientData.client, messageToForward, sourceChatId, chatId);
+      if (!result.success) {
+        console.log(`❌ ไม่สามารถส่งข้อความไปยังกลุ่ม ${chatId}: ${result.error || 'Unknown error'}`);
+      }
     }
 
   } catch (error) {
@@ -714,6 +759,19 @@ const getActiveForwarders = async (req, res) => {
       details: error.message
     });
   }
+};
+
+// เพิ่มฟังก์ชันสำหรับจัดการกลุ่มตาม Slow Mode
+const optimizeGroupOrder = (groups) => {
+  return groups.sort((a, b) => {
+    // จัดเรียงตาม priority:
+    // 1. กลุ่มที่ไม่มี slow mode
+    // 2. กลุ่มที่มี slow mode น้อย
+    // 3. กลุ่มที่มี slow mode มาก
+    const aSeconds = groupCooldowns.get(a)?.seconds || 0;
+    const bSeconds = groupCooldowns.get(b)?.seconds || 0;
+    return aSeconds - bSeconds;
+  });
 };
 
 module.exports = {
